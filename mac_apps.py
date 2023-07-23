@@ -65,7 +65,7 @@ class Apps:
                 info_plist = plistlib.loads(file)
                 app_info[info_plist.get('CFBundleName', file_name)] = {
                     'Version': info_plist.get('CFBundleShortVersionString', None),
-                    'Minimum System Version': info_plist.get('LSMinimumSystemVersion', None),
+                    'Minimum System Version': info_plist.get('LSMinimumSystemVersion', 0),
                     'Size': self.convert_size(app_bundle_size)}
             except FileNotFoundError:
                 pass
@@ -112,7 +112,7 @@ class AppsDB:
         for app, info in data.items():
             app_data = AppInfo(name=app,
                                 ver=info['Version'],
-                                min_ver=info['Minimum System Version'] if not None else 0,
+                                min_ver=info['Minimum System Version'],
                                 size=info['Size'])
             
             self.cursor.execute(insert_query, (app_data.name,
