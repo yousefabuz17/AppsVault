@@ -57,4 +57,7 @@ The script operates through the following steps to gather and store application 
 - [x] Prevent duplicate entries in the database.
 - [x] Update existing entries with the latest information.
 - [ ] Add support for other operating systems.
+    - [ ] Windows
+    - [x] Linux
+    - [x] MacOS
 - [ ] Add support for other database management systems.

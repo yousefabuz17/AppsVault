@@ -1,4 +1,5 @@
 import json
+import configparser
 import os
 import plistlib
 from collections import OrderedDict
@@ -6,7 +7,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import NamedTuple
-
+import platform
 import psycopg
 
 
@@ -28,7 +29,7 @@ class AppInfo:
     min_ver: str=None
     size: str=None
 
-class Apps:
+class MacApps:
     def __init__(self):
         pass
     
@@ -43,7 +44,8 @@ class Apps:
         all_files = sorted(all_files, key=lambda i: i.split('/')[2].lower())
         return all_files
     
-    def convert_size(self, file_size):
+    @staticmethod
+    def convert_size(file_size):
         size_units = ['B', 'KB', 'MB', 'GB', 'TB']
         factor = 1024
         unit = 0
@@ -73,14 +75,25 @@ class Apps:
         return app_info
 
 class AppsDB:
-    def __init__(self, data):
+    def __init__(self, data, config):
         self.connection = None
         self.cursor = None
-        self.config = ConfigInfo(*json.load(open(Path(__file__).parent.absolute() / 'config.json')).values())
+        self.config = ConfigInfo(*config)
         self.sql_script = open(Path(__file__).parent.absolute() / 'apps_db.sql').read().split('\n\n')
         self.data = data
+        self.system = self.modify_system(platform.system())
         self.sql_connect()
         self.create_tables()
+    
+    @staticmethod
+    def modify_system(system):
+        if system == 'Darwin':
+            system = 'Mac'
+            return system
+        return system
+    
+    def modify_script(self, name):
+        return name.replace('Applications', f'{self.system}_Applications')
     
     def sql_connect(self):
         try:
@@ -95,15 +108,14 @@ class AppsDB:
             print(f"An error occurred while connecting to the database: {e}")
             raise e
 
-    
-    
     def create_tables(self):
         global apps_table
-        apps_table = SQLScript(capps=self.sql_script[0], iapps=self.sql_script[1])
+        table_name = self.modify_script(self.sql_script[0])
+        insert_table_name = self.modify_script(self.sql_script[1])
+        apps_table = SQLScript(capps=table_name, iapps=insert_table_name)
         self.cursor.execute(apps_table.capps)
         self.connection.commit()
         self.update_db()
-    
     
     def update_db(self):
         data = self.data
@@ -130,7 +142,7 @@ class AppsDB:
                 print(f"An error occurred during transaction rollback: {e}")
         if self.cursor:
             self.cursor.close()
-            print("Database Updated Successfully")
+            print(f"{self.system} Database Updated Successfully")
         if self.connection:
             self.connection.close()
             print("Database Server Closed")
@@ -138,11 +150,47 @@ class AppsDB:
     def __del__(self):
         self.close_db()
 
-def main():
-    apps = Apps()
-    all_apps = apps.get_app_info()
-    AppsDB(all_apps)
-    # apps_db = AppsDB()
+class LinuxApps:
+    def __init__(self):
+        pass
+    
+    @lru_cache(maxsize=None)
+    def get_desktop_info(self):
+        apps_path = '/usr/share/applications'
+        files = [i for i in Path(apps_path).rglob('*') if i.endswith('.desktop')]
+        desktop_info = OrderedDict()
+        for _, _ in enumerate(files, start=1):
+            app_config = configparser.ConfigParser()
+            app_config.read(app_config)
+            executable_path = app_config.get('Desktop Entry', 'Exec').split()[0]
+            
+            if os.path.isfile(executable_path):
+                app_size = os.path.getsize(executable_path)
+            else:
+                app_size = 0
+            
+            desktop_info[app_config.get('Desktop Entry', 'Name')] = {
+                                        'Version': app_config.get('Desktop Entry', 'Version'),
+                                        'Size': MacApps.convert_size(app_size)}
+        return desktop_info
+
+def main(system):
+    config = json.load(open(Path(__file__).parent.absolute() / 'config.json')).values()
+    
+    match system:
+        case 'Darwin':
+            apps = MacApps()
+            all_apps = apps.get_app_info()
+            AppsDB(data=all_apps, config=config)
+        case 'Linux':
+            apps = LinuxApps()
+            all_apps = apps.get_desktop_info()
+            AppsDB(data=all_apps, config=config)
+        case 'Windows':
+            pass
+        case _:
+            return ''
 
 if __name__ == '__main__':
-    main()
+    system = platform.system()
+    main(system)
