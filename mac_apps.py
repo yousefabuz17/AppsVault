@@ -1,10 +1,12 @@
+import json
 import os
 import plistlib
-import json
-from pathlib import Path
 from collections import OrderedDict
+from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import NamedTuple
+
 import psycopg
 
 
@@ -13,6 +15,18 @@ class ConfigInfo(NamedTuple):
     dbname: str
     username: str
     password: str
+
+@dataclass
+class SQLScript:
+    capps: str=None
+    iapps: str=None
+
+@dataclass
+class AppInfo:
+    name: str=None
+    ver: str=None
+    min_ver: str=None
+    size: str=None
 
 class Apps:
     def __init__(self):
@@ -50,38 +64,85 @@ class Apps:
                 file = open(file_path, 'rb').read()
                 info_plist = plistlib.loads(file)
                 app_info[info_plist.get('CFBundleName', file_name)] = {
-                                        'Version': info_plist.get('CFBundleShortVersionString', None),
-                                        'Minimum System Version': info_plist.get('LSMinimumSystemVersion', None),
-                                        'Size': self.convert_size(app_bundle_size)
-                                        }
+                    'Version': info_plist.get('CFBundleShortVersionString', None),
+                    'Minimum System Version': info_plist.get('LSMinimumSystemVersion', None),
+                    'Size': self.convert_size(app_bundle_size)}
             except FileNotFoundError:
                 pass
         
         return app_info
 
 class AppsDB:
-    def __init__(self):
-        self.connect = None
+    def __init__(self, data):
+        self.connection = None
         self.cursor = None
         self.config = ConfigInfo(*json.load(open(Path(__file__).parent.absolute() / 'config.json')).values())
+        self.sql_script = open(Path(__file__).parent.absolute() / 'apps_db.sql').read().split('\n\n')
+        self.data = data
+        self.sql_connect()
+        self.create_tables()
     
     def sql_connect(self):
         try:
-            self.connect = psycopg.connect(
-                host=self.config.host,
-                dbname=self.config.dbname,
-                username=self.config.username,
-                password=self.config.password
-            )
-            self.cursor = self.connection.cursor
-        except psycopg.errors.ConfigFileError:
-            print('Check config file')
+            self.connection = psycopg.connect(
+                                host=self.config.host,
+                                dbname=self.config.dbname,
+                                user=self.config.username,
+                                password=self.config.password
+                                )
+            self.cursor = self.connection.cursor()
+        except (psycopg.errors.ConfigFileError, psycopg.Error, FileNotFoundError) as e:
+            print(f"An error occurred while connecting to the database: {e}")
+            raise e
+
+    
+    
+    def create_tables(self):
+        global apps_table
+        apps_table = SQLScript(capps=self.sql_script[0], iapps=self.sql_script[1])
+        self.cursor.execute(apps_table.capps)
+        self.connection.commit()
+        self.update_db()
+    
+    
+    def update_db(self):
+        data = self.data
+        insert_query = apps_table.iapps
+        
+        for app, info in data.items():
+            app_data = AppInfo(name=app,
+                                ver=info['Version'],
+                                min_ver=info['Minimum System Version'] if not None else 0,
+                                size=info['Size'])
+            
+            self.cursor.execute(insert_query, (app_data.name,
+                                                app_data.ver,
+                                                app_data.min_ver,
+                                                app_data.size))
+        self.connection.commit()
+    
+    def close_db(self):
+        if self.connection:
+            try:
+                self.connection.rollback()
+                # print("Transaction rollback completed.")
+            except psycopg.Error as e:
+                print(f"An error occurred during transaction rollback: {e}")
+        if self.cursor:
+            self.cursor.close()
+            print("Database Updated Successfully")
+        if self.connection:
+            self.connection.close()
+            print("Database Server Closed")
+    
+    def __del__(self):
+        self.close_db()
 
 def main():
     apps = Apps()
-    # all_apps_info = apps.get_app_info()
-    apps_db = AppsDB()
-    print(apps_db.config)
+    all_apps = apps.get_app_info()
+    AppsDB(all_apps)
+    # apps_db = AppsDB()
 
 if __name__ == '__main__':
     main()
