@@ -1,6 +1,6 @@
 # MacAppsVault
 
-This Python script is designed to extract information about applications installed on a macOS system and store this information in a PostgreSQL database. The script serves as a personal tool to keep track of all installed applications. Please note that it is currently designed to run on macOS systems and may not work on other platforms.
+This Python script is designed to extract information about applications installed on a macOS system and store this information in a PostgreSQL database. The script serves as a personal tool to keep track of all installed applications. Please note that it is currently designed to run on macOS systems and may not work on other platforms. 
 
 ## Table of Contents
 - [Features](#features)
@@ -61,3 +61,9 @@ The script operates through the following steps to gather and store application 
     - [x] Linux
     - [x] MacOS
 - [ ] Add support for other database management systems.
+    - [x] PostgreSQL
+    - [ ] MySQL
+    - [ ] SQLite
+    - [ ] MongoDB
+- **Small Updates**:
+    - Changed the database name to `{system_name}_applications`
