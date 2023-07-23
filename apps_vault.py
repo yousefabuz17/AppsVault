@@ -1,13 +1,16 @@
-import json
 import configparser
+import json
 import os
+import platform
 import plistlib
+import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import NamedTuple
-import platform
+
+import pandas as pd
 import psycopg
 
 
@@ -75,11 +78,11 @@ class MacApps:
         return app_info
 
 class AppsDB:
-    def __init__(self, data, config):
+    def __init__(self, data, config, sql_script):
         self.connection = None
         self.cursor = None
         self.config = ConfigInfo(*config)
-        self.sql_script = open(Path(__file__).parent.absolute() / 'apps_db.sql').read().split('\n\n')
+        self.sql_script = sql_script
         self.data = data
         self.system = self.modify_system(platform.system())
         self.sql_connect()
@@ -94,6 +97,10 @@ class AppsDB:
     
     def modify_script(self, name):
         return name.replace('Applications', f'{self.system}_Applications')
+    
+    def get_columns(self):
+        columns = re.findall(r'app_\w+', self.sql_script[0])
+        return columns
     
     def sql_connect(self):
         try:
@@ -133,19 +140,26 @@ class AppsDB:
                                                 app_data.size))
         self.connection.commit()
     
+    def get_updated_db(self):
+        self.cursor.execute(f'SELECT * FROM {self.system}_applications;')
+        table_data = self.cursor.fetchall()
+        table_data.sort(key= lambda i: i[0])
+        df = pd.DataFrame(table_data, columns=self.get_columns())
+        return df
+    
     def close_db(self):
         if self.connection:
             try:
                 self.connection.rollback()
-                # print("Transaction rollback completed.")
+                print(f"\n{self.system} Database Updated Successfully.\n")
+                print(f"Here is a quick peak at the updated table:\n{self.system} Applications Table\n{self.get_updated_db()}")
             except psycopg.Error as e:
                 print(f"An error occurred during transaction rollback: {e}")
         if self.cursor:
             self.cursor.close()
-            print(f"{self.system} Database Updated Successfully")
         if self.connection:
             self.connection.close()
-            print("Database Server Closed")
+            print(f"Database Server Closed.")
     
     def __del__(self):
         self.close_db()
@@ -176,16 +190,16 @@ class LinuxApps:
 
 def main(system):
     config = json.load(open(Path(__file__).parent.absolute() / 'config.json')).values()
-    
+    sql_script = open(Path(__file__).parent.absolute() / 'apps_db.sql').read().split('\n\n')
     match system:
         case 'Darwin':
             apps = MacApps()
             all_apps = apps.get_app_info()
-            AppsDB(data=all_apps, config=config)
+            AppsDB(data=all_apps, config=config, sql_script=sql_script)
         case 'Linux':
             apps = LinuxApps()
             all_apps = apps.get_desktop_info()
-            AppsDB(data=all_apps, config=config)
+            AppsDB(data=all_apps, config=config, sql_script=sql_script)
         case 'Windows':
             pass
         case _:
