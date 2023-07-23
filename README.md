@@ -48,7 +48,7 @@ The script operates through the following steps to gather and store application 
     - It is important to note that this script is specifically designed to work on macOS systems for now. Support for other operating systems may be added in the future.
 
 ## Results
-<img width=600 alt="Terminal Table View" src="https://github.com/yousefabuz17/AppsVault/assets/68834704/b0e441cd-cfba-4126-bf0d-7398db5fe371">
+<img width=600 alt="Terminal Table View" src="https://github.com/yousefabuz17/AppsVault/assets/68834704/5ad64e39-ef53-49c3-8aeb-53a6225395f9">
 <img width="1392" alt="TablePlus View" src="https://github.com/yousefabuz17/AppsVault/assets/68834704/bba9c1c7-0825-4ec7-ab99-35496297cf3a">
 
 ## Progress
