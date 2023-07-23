@@ -50,6 +50,7 @@ The script operates through the following steps to gather and store application 
 ## Results
 <img width=600 alt="Terminal Table View" src="https://github.com/yousefabuz17/AppsVault/assets/68834704/b0e441cd-cfba-4126-bf0d-7398db5fe371">
 <img width="1392" alt="TablePlus View" src="https://github.com/yousefabuz17/AppsVault/assets/68834704/bba9c1c7-0825-4ec7-ab99-35496297cf3a">
+
 ## Progress
 - [x] Extract application information from Info.plist files.
 - [x] Convert application size to a human-readable format.
